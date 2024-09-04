@@ -1,5 +1,8 @@
+mod cli;
+
+use clap::Parser;
+use cli::{Cli, SCommand};
 use serde_json;
-use std::env;
 
 fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
     if encoded_value.chars().next().unwrap().is_digit(10) {
@@ -14,14 +17,12 @@ fn decode_bencoded_value(encoded_value: &str) -> serde_json::Value {
 }
 
 pub fn run() {
-    let args: Vec<String> = env::args().collect();
-    let command = &args[1];
+    let cli = Cli::parse();
 
-    if command == "decode" {
-        let encoded_value = &args[2];
-        let decoded_value = decode_bencoded_value(encoded_value);
-        println!("{}", decoded_value.to_string());
-    } else {
-        println!("unknown command: {}", args[1])
+    match cli.s_command {
+        SCommand::Decode { bencoded_value } => {
+            let decoded_value = decode_bencoded_value(&bencoded_value);
+            println!("{}", decoded_value.to_string());
+        }
     }
 }
