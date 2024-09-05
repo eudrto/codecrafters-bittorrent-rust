@@ -1,4 +1,4 @@
-use serde_json::json;
+use serde_json::{json, Number, Value};
 use std::fmt::Display;
 
 fn peek(bytes: &str) -> char {
@@ -31,6 +31,7 @@ fn read_until<'a>(window: &mut &'a str, ch: char) -> &'a str {
 pub enum BValue<'a> {
     String(&'a str),
     Integer(i64),
+    List(Vec<BValue<'a>>),
 }
 
 impl<'a> BValue<'a> {
@@ -46,6 +47,15 @@ impl<'a> BValue<'a> {
                 let integer = read_until(window, 'e').parse::<i64>().unwrap();
                 BValue::Integer(integer)
             }
+            'l' => {
+                advance(window);
+                let mut list = vec![];
+                while peek(window) != 'e' {
+                    list.push(Self::decode(window));
+                }
+                advance(window);
+                BValue::List(list)
+            }
             c if c.is_ascii_digit() => {
                 let len = read_until(window, ':').parse::<usize>().unwrap();
                 BValue::String(read_range(window, len))
@@ -55,18 +65,19 @@ impl<'a> BValue<'a> {
             }
         }
     }
+
+    fn to_value(&self) -> Value {
+        match self {
+            Self::String(string) => Value::String(string.to_string()),
+            Self::Integer(integer) => Value::Number(Number::from(*integer)),
+            Self::List(list) => Value::Array(list.iter().map(|bval| bval.to_value()).collect()),
+        }
+    }
 }
 
 impl<'a> Display for BValue<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::String(string) => {
-                write!(f, "{}", json!(string))
-            }
-            Self::Integer(integer) => {
-                write!(f, "{}", json!(integer))
-            }
-        }
+        write!(f, "{}", json!(self.to_value()))
     }
 }
 
@@ -128,6 +139,30 @@ mod tests {
     #[test]
     fn test_integer_zero() {
         let val = 0;
+        let encoded = serde_bencode::to_string(&val).unwrap();
+        let decoded = BValue::parse(&encoded);
+        assert_eq!(decoded.to_string(), json!(val).to_string());
+    }
+
+    #[test]
+    fn test_list() {
+        let val = ["spam", "eggs"];
+        let encoded = serde_bencode::to_string(&val).unwrap();
+        let decoded = BValue::parse(&encoded);
+        assert_eq!(decoded.to_string(), json!(val).to_string());
+    }
+
+    #[test]
+    fn test_list_emtpy() {
+        let val: [&str; 0] = [];
+        let encoded = serde_bencode::to_string(&val).unwrap();
+        let decoded = BValue::parse(&encoded);
+        assert_eq!(decoded.to_string(), json!(val).to_string());
+    }
+
+    #[test]
+    fn test_list_le_el() {
+        let val = ["le", "el"];
         let encoded = serde_bencode::to_string(&val).unwrap();
         let decoded = BValue::parse(&encoded);
         assert_eq!(decoded.to_string(), json!(val).to_string());
