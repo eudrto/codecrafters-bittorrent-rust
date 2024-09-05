@@ -1,5 +1,5 @@
-use serde_json::{json, Number, Value};
-use std::fmt::Display;
+use serde_json::{json, Map, Number, Value};
+use std::{collections::HashMap, fmt::Display};
 
 fn peek(bytes: &str) -> char {
     bytes.chars().next().unwrap()
@@ -32,6 +32,7 @@ pub enum BValue<'a> {
     String(&'a str),
     Integer(i64),
     List(Vec<BValue<'a>>),
+    Dict(HashMap<&'a str, BValue<'a>>),
 }
 
 impl<'a> BValue<'a> {
@@ -42,6 +43,18 @@ impl<'a> BValue<'a> {
 
     fn decode(window: &mut &'a str) -> BValue<'a> {
         match peek(*window) {
+            'd' => {
+                advance(window);
+                let mut map = HashMap::new();
+                while peek(window) != 'e' {
+                    let Self::String(key) = Self::decode(window) else {
+                        panic!("dictionary keys must be strings")
+                    };
+                    map.insert(key, Self::decode(window));
+                }
+                advance(window);
+                BValue::Dict(map)
+            }
             'i' => {
                 advance(window);
                 let integer = read_until(window, 'e').parse::<i64>().unwrap();
@@ -71,6 +84,11 @@ impl<'a> BValue<'a> {
             Self::String(string) => Value::String(string.to_string()),
             Self::Integer(integer) => Value::Number(Number::from(*integer)),
             Self::List(list) => Value::Array(list.iter().map(|bval| bval.to_value()).collect()),
+            Self::Dict(dict) => Value::Object(Map::from_iter(
+                dict.iter()
+                    .map(|(k, v)| (k.to_string(), v.to_value()))
+                    .collect::<Vec<_>>(),
+            )),
         }
     }
 }
@@ -163,6 +181,15 @@ mod tests {
     #[test]
     fn test_list_le_el() {
         let val = ["le", "el"];
+        let encoded = serde_bencode::to_string(&val).unwrap();
+        let decoded = BValue::parse(&encoded);
+        assert_eq!(decoded.to_string(), json!(val).to_string());
+    }
+
+    #[test]
+    fn test_dict() {
+        let mut val = HashMap::new();
+        val.insert("spam", vec!['a', 'b']);
         let encoded = serde_bencode::to_string(&val).unwrap();
         let decoded = BValue::parse(&encoded);
         assert_eq!(decoded.to_string(), json!(val).to_string());
