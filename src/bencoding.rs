@@ -5,7 +5,10 @@ fn peek(bytes: &str) -> char {
     bytes.chars().next().unwrap()
 }
 
-#[cfg(test)]
+fn advance(window: &mut &str) {
+    read(window);
+}
+
 fn read(window: &mut &str) -> char {
     let result = peek(window);
     *window = &window[result.len_utf8()..];
@@ -27,6 +30,7 @@ fn read_until<'a>(window: &mut &'a str, ch: char) -> &'a str {
 
 pub enum BValue<'a> {
     String(&'a str),
+    Integer(i64),
 }
 
 impl<'a> BValue<'a> {
@@ -37,6 +41,11 @@ impl<'a> BValue<'a> {
 
     fn decode(window: &mut &'a str) -> BValue<'a> {
         match peek(*window) {
+            'i' => {
+                advance(window);
+                let integer = read_until(window, 'e').parse::<i64>().unwrap();
+                BValue::Integer(integer)
+            }
             c if c.is_ascii_digit() => {
                 let len = read_until(window, ':').parse::<usize>().unwrap();
                 BValue::String(read_range(window, len))
@@ -53,6 +62,9 @@ impl<'a> Display for BValue<'a> {
         match self {
             Self::String(string) => {
                 write!(f, "{}", json!(string))
+            }
+            Self::Integer(integer) => {
+                write!(f, "{}", json!(integer))
             }
         }
     }
@@ -93,6 +105,30 @@ mod tests {
         let val = "naïve";
         let encoded = serde_bencode::to_string(&val).unwrap();
         assert_eq!(read(&mut &encoded[..]), '6');
+        let decoded = BValue::parse(&encoded);
+        assert_eq!(decoded.to_string(), json!(val).to_string());
+    }
+
+    #[test]
+    fn test_integer_positive() {
+        let val = 1;
+        let encoded = serde_bencode::to_string(&val).unwrap();
+        let decoded = BValue::parse(&encoded);
+        assert_eq!(decoded.to_string(), json!(val).to_string());
+    }
+
+    #[test]
+    fn test_integer_negative() {
+        let val = -1;
+        let encoded = serde_bencode::to_string(&val).unwrap();
+        let decoded = BValue::parse(&encoded);
+        assert_eq!(decoded.to_string(), json!(val).to_string());
+    }
+
+    #[test]
+    fn test_integer_zero() {
+        let val = 0;
+        let encoded = serde_bencode::to_string(&val).unwrap();
         let decoded = BValue::parse(&encoded);
         assert_eq!(decoded.to_string(), json!(val).to_string());
     }
