@@ -10,7 +10,7 @@ pub fn run() {
 
     match cli.s_command {
         SCommand::Decode { bencoded_value } => {
-            let bval = BValue::parse(&bencoded_value);
+            let bval = BValue::parse(bencoded_value.as_bytes());
             println!("{}", bval);
         }
     }
