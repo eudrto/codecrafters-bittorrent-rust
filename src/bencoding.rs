@@ -5,32 +5,7 @@ use std::{
     str::from_utf8,
 };
 
-fn peek(bytes: &[u8]) -> u8 {
-    bytes[0]
-}
-
-fn advance(window: &mut &[u8]) {
-    read(window);
-}
-
-fn read(window: &mut &[u8]) -> u8 {
-    let result = peek(window);
-    *window = &window[1..];
-    result
-}
-
-fn read_range<'a>(window: &mut &'a [u8], len: usize) -> &'a [u8] {
-    let result = &window[..len];
-    *window = &window[len..];
-    result
-}
-
-fn read_until<'a>(window: &mut &'a [u8], byte: u8) -> &'a [u8] {
-    let pos = window.iter().position(|x| *x == byte).unwrap();
-    let result = &window[..pos];
-    *window = &window[pos + 1..];
-    result
-}
+use crate::bytes_reader::BytesReader;
 
 fn parse_int(bytes: &[u8]) -> i64 {
     let string = from_utf8(bytes).unwrap();
@@ -71,42 +46,44 @@ pub enum BValue<'a> {
 }
 
 impl<'a> BValue<'a> {
-    pub fn parse(mut encoded: &'a [u8]) -> Self {
-        let window = &mut encoded;
-        Self::decode(window)
+    pub fn decode(encoded: &'a [u8]) -> Self {
+        let mut reader = BytesReader::new(encoded);
+        Self::parse(&mut reader)
     }
 
-    fn decode(window: &mut &'a [u8]) -> BValue<'a> {
-        match peek(*window) {
+    fn parse(reader: &mut BytesReader<'a>) -> Self {
+        match reader.peek() {
             b'd' => {
-                advance(window);
+                reader.skip();
                 let mut map = HashMap::new();
-                while peek(window) != b'e' {
-                    let Self::String(key) = Self::decode(window) else {
+                while reader.peek() != b'e' {
+                    let Self::String(key) = Self::parse(reader) else {
                         panic!("dictionary keys must be strings")
                     };
-                    map.insert(key, Self::decode(window));
+                    map.insert(key, Self::parse(reader));
                 }
-                advance(window);
+                reader.skip();
                 BValue::Dict(map)
             }
             b'i' => {
-                advance(window);
-                let integer = parse_int(read_until(window, b'e'));
+                reader.skip();
+                let integer = parse_int(reader.read_until(b'e'));
+                reader.skip();
                 BValue::Integer(integer)
             }
             b'l' => {
-                advance(window);
+                reader.skip();
                 let mut list = vec![];
-                while peek(window) != b'e' {
-                    list.push(Self::decode(window));
+                while reader.peek() != b'e' {
+                    list.push(Self::parse(reader));
                 }
-                advance(window);
+                reader.skip();
                 BValue::List(list)
             }
             c if c.is_ascii_digit() => {
-                let len = parse_int(read_until(window, b':')) as usize;
-                BValue::String(read_range(window, len).into())
+                let len = parse_int(reader.read_until(b':')) as usize;
+                reader.skip();
+                BValue::String(reader.read_range(len).into())
             }
             _ => {
                 unimplemented!()
@@ -139,7 +116,7 @@ mod tests {
     fn test_string_single_digit_len() {
         let val = "apple";
         let encoded = serde_bencode::to_bytes(&val).unwrap();
-        let decoded = BValue::parse(&encoded);
+        let decoded = BValue::decode(&encoded);
         assert_eq!(json!(decoded), json!(val));
     }
 
@@ -147,7 +124,7 @@ mod tests {
     fn test_string_multi_digit_len() {
         let val = "watermelon";
         let encoded = serde_bencode::to_bytes(&val).unwrap();
-        let decoded = BValue::parse(&encoded);
+        let decoded = BValue::decode(&encoded);
         assert_eq!(json!(decoded), json!(val));
     }
 
@@ -155,8 +132,8 @@ mod tests {
     fn test_string_utf8() {
         let val = "naïve";
         let encoded = serde_bencode::to_bytes(&val).unwrap();
-        assert_eq!(read(&mut &encoded[..]), b'6');
-        let decoded = BValue::parse(&encoded);
+        assert_eq!(BytesReader::new(&encoded).read(), b'6');
+        let decoded = BValue::decode(&encoded);
         assert_eq!(json!(decoded), json!(val));
     }
 
@@ -164,7 +141,7 @@ mod tests {
     fn test_integer_positive() {
         let val = 1;
         let encoded = serde_bencode::to_bytes(&val).unwrap();
-        let decoded = BValue::parse(&encoded);
+        let decoded = BValue::decode(&encoded);
         assert_eq!(json!(decoded), json!(val));
     }
 
@@ -172,7 +149,7 @@ mod tests {
     fn test_integer_negative() {
         let val = -1;
         let encoded = serde_bencode::to_bytes(&val).unwrap();
-        let decoded = BValue::parse(&encoded);
+        let decoded = BValue::decode(&encoded);
         assert_eq!(json!(decoded), json!(val));
     }
 
@@ -180,7 +157,7 @@ mod tests {
     fn test_integer_zero() {
         let val = 0;
         let encoded = serde_bencode::to_bytes(&val).unwrap();
-        let decoded = BValue::parse(&encoded);
+        let decoded = BValue::decode(&encoded);
         assert_eq!(json!(decoded), json!(val));
     }
 
@@ -188,7 +165,7 @@ mod tests {
     fn test_list() {
         let val = ["spam", "eggs"];
         let encoded = serde_bencode::to_bytes(&val).unwrap();
-        let decoded = BValue::parse(&encoded);
+        let decoded = BValue::decode(&encoded);
         assert_eq!(json!(decoded), json!(val));
     }
 
@@ -196,7 +173,7 @@ mod tests {
     fn test_list_emtpy() {
         let val: [&str; 0] = [];
         let encoded = serde_bencode::to_bytes(&val).unwrap();
-        let decoded = BValue::parse(&encoded);
+        let decoded = BValue::decode(&encoded);
         assert_eq!(json!(decoded), json!(val));
     }
 
@@ -204,7 +181,7 @@ mod tests {
     fn test_list_le_el() {
         let val = ["le", "el"];
         let encoded = serde_bencode::to_bytes(&val).unwrap();
-        let decoded = BValue::parse(&encoded);
+        let decoded = BValue::decode(&encoded);
         assert_eq!(json!(decoded), json!(val));
     }
 
@@ -213,14 +190,14 @@ mod tests {
         let mut val = HashMap::new();
         val.insert("spam", vec!['a', 'b']);
         let encoded = serde_bencode::to_bytes(&val).unwrap();
-        let decoded = BValue::parse(&encoded);
+        let decoded = BValue::decode(&encoded);
         assert_eq!(json!(decoded), json!(val));
     }
 
     #[test]
     fn test_read_torrent_file() {
         let encoded = fs::read("sample.torrent").unwrap();
-        let decoded = serde_json::to_string_pretty(&BValue::parse(&encoded)).unwrap();
+        let decoded = serde_json::to_string_pretty(&BValue::decode(&encoded)).unwrap();
         println!("{decoded}");
     }
 }

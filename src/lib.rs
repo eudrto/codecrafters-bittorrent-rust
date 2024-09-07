@@ -1,4 +1,5 @@
 mod bencoding;
+mod bytes_reader;
 mod cli;
 
 use bencoding::BValue;
@@ -11,7 +12,7 @@ pub fn run() {
 
     match cli.s_command {
         SCommand::Decode { bencoded_value } => {
-            let bval = BValue::parse(bencoded_value.as_bytes());
+            let bval = BValue::decode(bencoded_value.as_bytes());
             println!("{}", json!(bval));
         }
     }
