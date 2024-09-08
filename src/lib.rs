@@ -1,3 +1,4 @@
+mod bdict;
 mod bencoding;
 mod binteger;
 mod blist;
