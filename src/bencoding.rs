@@ -5,7 +5,7 @@ use std::{
     str::from_utf8,
 };
 
-use crate::{binteger::BInteger, bstring::BString, bytes_reader::BytesReader};
+use crate::{binteger::BInteger, blist::BList, bstring::BString, bytes_reader::BytesReader};
 
 fn parse_int(bytes: &[u8]) -> i64 {
     let string = from_utf8(bytes).unwrap();
@@ -17,7 +17,7 @@ fn parse_int(bytes: &[u8]) -> i64 {
 pub enum BValue<'a> {
     String(BString<'a>),
     Integer(BInteger<'a>),
-    List(Vec<BValue<'a>>),
+    List(BList<'a>),
     Dict(HashMap<BString<'a>, BValue<'a>>),
 }
 
@@ -54,7 +54,7 @@ impl<'a> BValue<'a> {
                     list.push(Self::parse(reader));
                 }
                 reader.skip();
-                BValue::List(list)
+                BValue::List(list.into())
             }
             c if c.is_ascii_digit() => {
                 let len = parse_int(reader.read_until(b':')) as usize;

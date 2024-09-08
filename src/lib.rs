@@ -1,5 +1,6 @@
 mod bencoding;
 mod binteger;
+mod blist;
 mod bstring;
 mod bytes_reader;
 mod cli;
