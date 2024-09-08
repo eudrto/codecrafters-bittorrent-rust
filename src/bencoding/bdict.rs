@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::{bvalue::BValue, bstring::BString};
+use super::{BString, BValue};
 
 #[derive(Serialize)]
 pub struct BDict<'a>(HashMap<BString<'a>, BValue<'a>>);

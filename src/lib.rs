@@ -1,12 +1,8 @@
-mod bdict;
-mod bvalue;
-mod binteger;
-mod blist;
-mod bstring;
+mod bencoding;
 mod bytes_reader;
 mod cli;
 
-use bvalue::BValue;
+use bencoding::BValue;
 use clap::Parser;
 use cli::{Cli, SCommand};
 use serde_json::json;

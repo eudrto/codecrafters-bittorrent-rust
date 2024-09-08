@@ -1,6 +1,7 @@
 use serde::Serialize;
 
-use crate::bvalue::BValue;
+use super::BValue;
+
 
 #[derive(Serialize)]
 pub struct BList<'a>(Vec<BValue<'a>>);

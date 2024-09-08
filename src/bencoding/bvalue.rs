@@ -5,9 +5,9 @@ use std::{
     str::from_utf8,
 };
 
-use crate::{
-    bdict::BDict, binteger::BInteger, blist::BList, bstring::BString, bytes_reader::BytesReader,
-};
+use crate::bytes_reader::BytesReader;
+
+use super::{blist::BList, BDict, BInteger, BString};
 
 fn parse_int(bytes: &[u8]) -> i64 {
     let string = from_utf8(bytes).unwrap();
