@@ -1,3 +1,4 @@
+mod bstring;
 mod bencoding;
 mod bytes_reader;
 mod cli;
