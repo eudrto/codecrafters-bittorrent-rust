@@ -9,11 +9,6 @@ use crate::bytes_reader::BytesReader;
 
 use super::{blist::BList, BDict, BInteger, BString};
 
-fn parse_int(bytes: &[u8]) -> i64 {
-    let string = from_utf8(bytes).unwrap();
-    string.parse::<i64>().unwrap()
-}
-
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum BValue<'a> {
@@ -59,7 +54,10 @@ impl<'a> BValue<'a> {
                 BValue::List(list.into())
             }
             c if c.is_ascii_digit() => {
-                let len = parse_int(reader.read_until(b':')) as usize;
+                let len = from_utf8(reader.read_until(b':'))
+                    .unwrap()
+                    .parse::<usize>()
+                    .unwrap();
                 reader.skip();
                 BValue::String(reader.read_range(len).into())
             }
@@ -76,6 +74,46 @@ impl<'a> Display for BValue<'a> {
     }
 }
 
+impl<'a> TryFrom<&'a BValue<'a>> for &BString<'a> {
+    type Error = &'a BValue<'a>;
+    fn try_from(value: &'a BValue<'a>) -> Result<Self, Self::Error> {
+        match value {
+            BValue::String(bstring) => Ok(bstring),
+            _ => Err(value),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a BValue<'a>> for &BInteger<'a> {
+    type Error = &'a BValue<'a>;
+    fn try_from(value: &'a BValue<'a>) -> Result<Self, Self::Error> {
+        match value {
+            BValue::Integer(binteger) => Ok(binteger),
+            _ => Err(value),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a BValue<'a>> for &BList<'a> {
+    type Error = &'a BValue<'a>;
+    fn try_from(value: &'a BValue<'a>) -> Result<Self, Self::Error> {
+        match value {
+            BValue::List(blist) => Ok(blist),
+            _ => Err(value),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a BValue<'a>> for &BDict<'a> {
+    type Error = &'a BValue<'a>;
+    fn try_from(value: &'a BValue<'a>) -> Result<Self, Self::Error> {
+        match value {
+            BValue::Dict(bdict) => Ok(bdict),
+            _ => Err(value),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -83,12 +121,6 @@ mod tests {
     use super::*;
     use serde_bencode;
     use serde_json::json;
-
-    #[test]
-    fn test_parse_int() {
-        let bytes = [b'4', b'2'];
-        assert_eq!(parse_int(&bytes), 42);
-    }
 
     #[test]
     fn test_string_single_digit_len() {
