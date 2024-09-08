@@ -3,7 +3,7 @@ use serde::Serialize;
 use super::BValue;
 
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct BList<'a>(Vec<BValue<'a>>);
 
 impl<'a> From<Vec<BValue<'a>>> for BList<'a> {

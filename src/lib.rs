@@ -1,6 +1,7 @@
 mod bencoding;
 mod bytes_reader;
 mod cli;
+mod metainfo;
 
 use bencoding::BValue;
 use clap::Parser;

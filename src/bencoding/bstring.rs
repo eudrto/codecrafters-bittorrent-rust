@@ -2,7 +2,7 @@ use std::str::{from_utf8, Utf8Error};
 
 use serde::{Serialize, Serializer};
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct BString<'a>(&'a [u8]);
 
 impl<'a> BString<'a> {

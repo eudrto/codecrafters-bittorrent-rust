@@ -9,7 +9,7 @@ use crate::bytes_reader::BytesReader;
 
 use super::{blist::BList, BDict, BInteger, BString};
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub enum BValue<'a> {
     String(BString<'a>),

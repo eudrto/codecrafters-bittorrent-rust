@@ -2,6 +2,7 @@ use std::str::from_utf8;
 
 use serde::{Serialize, Serializer};
 
+#[derive(Debug)]
 pub struct BInteger<'a>(&'a [u8]);
 
 impl<'a> BInteger<'a> {
