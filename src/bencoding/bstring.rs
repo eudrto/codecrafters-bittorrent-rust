@@ -23,6 +23,12 @@ impl<'a> From<&'a str> for BString<'a> {
     }
 }
 
+impl<'a> From<&BString<'a>> for &'a [u8] {
+    fn from(value: &BString<'a>) -> Self {
+        value.0
+    }
+}
+
 impl<'a> TryFrom<&BString<'a>> for &'a str {
     type Error = Utf8Error;
     fn try_from(value: &BString<'a>) -> Result<Self, Self::Error> {
