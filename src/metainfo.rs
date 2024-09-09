@@ -1,3 +1,5 @@
+use sha1::{Digest, Sha1};
+
 use crate::bencoding::{BDict, BInteger, BString, BValue};
 
 pub struct Metainfo<'a> {
@@ -17,11 +19,23 @@ impl<'a> Metainfo<'a> {
         announce.try_into().unwrap()
     }
 
-    pub fn get_length(&self) -> i64 {
+    fn get_info(&'a self) -> &BDict<'a> {
         let metainfo: &BDict = (&self.bvalue).try_into().unwrap();
-        let info: &BDict = (&metainfo["info"]).try_into().unwrap();
+        (&metainfo["info"]).try_into().unwrap()
+    }
+
+    pub fn get_length(&self) -> i64 {
+        let info = self.get_info();
         let length: &BInteger = (&info["length"]).try_into().unwrap();
         length.as_i64()
+    }
+
+    pub fn get_info_hash(&self) -> String {
+        let encoded = self.get_info().encode();
+        let mut hasher = Sha1::new();
+        hasher.update(encoded);
+        let hash = hasher.finalize();
+        hex::encode(hash)
     }
 }
 
@@ -32,7 +46,7 @@ mod tests {
     use super::Metainfo;
 
     #[test]
-    fn t1() {
+    fn test_metainfo() {
         let metainfo_path = "sample.torrent";
         let metainfo_bytes = fs::read(metainfo_path).unwrap();
         let metainfo = Metainfo::new(&metainfo_bytes);

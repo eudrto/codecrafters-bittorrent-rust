@@ -27,6 +27,7 @@ impl<'a> BValue<'a> {
     fn parse(reader: &mut BytesReader<'a>) -> Self {
         match reader.peek() {
             b'd' => {
+                let start = reader.get_bytes();
                 reader.skip();
                 let mut map = HashMap::new();
                 while reader.peek() != b'e' {
@@ -36,7 +37,9 @@ impl<'a> BValue<'a> {
                     map.insert(key, Self::parse(reader));
                 }
                 reader.skip();
-                BValue::Dict(map.into())
+                let end = reader.get_bytes();
+                let encoded = &start[..start.len() - end.len()];
+                BValue::Dict(BDict::new(encoded, map.into()))
             }
             b'i' => {
                 reader.skip();

@@ -7,6 +7,10 @@ impl<'a> BytesReader<'a> {
         Self { bytes }
     }
 
+    pub fn get_bytes(&self) -> &'a [u8] {
+        self.bytes
+    }
+
     pub fn peek(&self) -> u8 {
         self.bytes[0]
     }

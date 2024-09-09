@@ -7,7 +7,7 @@ pub struct BString<'a>(&'a [u8]);
 
 impl<'a> BString<'a> {
     fn to_hex_string(&self) -> String {
-        self.0.iter().map(|byte| format!("{:02x}", byte)).collect()
+        hex::encode(self.0)
     }
 }
 

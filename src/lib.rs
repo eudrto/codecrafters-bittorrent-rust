@@ -25,6 +25,7 @@ pub fn run() {
 
             println!("Tracker URL: {}", metainfo.get_tracker());
             println!("Length: {}", metainfo.get_length());
+            println!("Info Hash: {}", metainfo.get_info_hash())
         }
     }
 }
