@@ -1,18 +1,24 @@
+#[derive(Debug)]
 pub struct BytesReader<'a> {
     bytes: &'a [u8],
+    pos: usize,
 }
 
 impl<'a> BytesReader<'a> {
     pub fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes }
+        Self { bytes, pos: 0 }
     }
 
-    pub fn get_bytes(&self) -> &'a [u8] {
-        self.bytes
+    pub fn get_pos(&self) -> usize {
+        self.pos
+    }
+
+    pub fn get_from(&self, start: usize) -> &'a [u8] {
+        &self.bytes[start..self.pos]
     }
 
     pub fn peek(&self) -> u8 {
-        self.bytes[0]
+        self.bytes[self.pos]
     }
 
     pub fn skip(&mut self) {
@@ -20,20 +26,19 @@ impl<'a> BytesReader<'a> {
     }
 
     pub fn read(&mut self) -> u8 {
-        self.read_range(1)[0]
+        self.read_n(1)[0]
     }
 
-    pub fn read_range(&mut self, len: usize) -> &'a [u8] {
-        let result = &self.bytes[..len];
-        self.bytes = &self.bytes[len..];
-        result
+    pub fn read_n(&mut self, len: usize) -> &'a [u8] {
+        let start = self.pos;
+        self.pos += len;
+        &self.bytes[start..self.pos]
     }
 
     pub fn read_until(&mut self, byte: u8) -> &'a [u8] {
-        let pos = self.bytes.iter().position(|x| *x == byte).unwrap();
-        let result = &self.bytes[..pos];
-        self.bytes = &self.bytes[pos..];
-        result
+        let start = self.pos;
+        self.pos += self.bytes[start..].iter().position(|x| *x == byte).unwrap();
+        &self.bytes[start..self.pos]
     }
 }
 
@@ -70,15 +75,16 @@ mod tests {
     fn test_read_range() {
         let arr = [1, 2, 3];
         let mut reader = BytesReader::new(&arr);
-        assert_eq!(reader.read_range(2), [1, 2]);
+        assert_eq!(reader.read_n(2), [1, 2]);
         assert_eq!(reader.peek(), 3);
     }
 
     #[test]
     fn test_read_until() {
-        let arr = [1, 2, 3];
+        let arr = [1, 2, 3, 4];
         let mut reader = BytesReader::new(&arr);
-        assert_eq!(reader.read_until(3), [1, 2]);
-        assert_eq!(reader.peek(), 3);
+        reader.skip();
+        assert_eq!(reader.read_until(4), [2, 3]);
+        assert_eq!(reader.peek(), 4);
     }
 }
