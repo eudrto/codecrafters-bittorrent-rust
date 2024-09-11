@@ -9,6 +9,14 @@ impl<'a> BytesReader<'a> {
         Self { bytes, pos: 0 }
     }
 
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    pub fn is_at_end(&self) -> bool {
+        self.pos == self.len()
+    }
+
     pub fn get_pos(&self) -> usize {
         self.pos
     }
