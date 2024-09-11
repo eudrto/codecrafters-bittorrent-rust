@@ -4,7 +4,7 @@ use crate::bytes_reader::BytesReader;
 
 #[derive(Debug)]
 pub struct Decoder<'a> {
-    reader: BytesReader<'a>,
+    pub reader: BytesReader<'a>,
 }
 
 impl<'a> Decoder<'a> {
@@ -12,19 +12,19 @@ impl<'a> Decoder<'a> {
         Self { reader }
     }
 
-    fn is_string(&self) -> bool {
+    pub fn is_string(&self) -> bool {
         self.reader.peek().is_ascii_digit()
     }
 
-    fn is_integer(&self) -> bool {
+    pub fn is_integer(&self) -> bool {
         self.reader.peek() == b'i'
     }
 
-    fn is_list(&self) -> bool {
+    pub fn is_list(&self) -> bool {
         self.reader.peek() == b'l'
     }
 
-    fn is_dict(&self) -> bool {
+    pub fn is_dict(&self) -> bool {
         self.reader.peek() == b'd'
     }
 

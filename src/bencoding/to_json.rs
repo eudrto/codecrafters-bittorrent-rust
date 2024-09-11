@@ -1,41 +1,76 @@
 use std::str::from_utf8;
 
-use serde_bencode::value::Value as BValue;
-use serde_json::Value as JValue;
+use crate::bytes_reader::BytesReader;
 
-fn to_string(bytes: &[u8]) -> String {
-    match from_utf8(bytes) {
-        Ok(string) => string.to_owned(),
-        Err(_) => hex::encode(bytes),
-    }
+use super::Decoder;
+
+pub fn to_json(bencoded_value: &[u8]) -> String {
+    let mut decoder = Decoder::new(BytesReader::new(bencoded_value));
+    let mut json = String::with_capacity(decoder.reader.len());
+    decode(&mut decoder, &mut json);
+    json.shrink_to_fit();
+    json
 }
 
-fn convert(bval: &BValue) -> JValue {
-    match bval {
-        BValue::Bytes(bytes) => JValue::String(to_string(bytes)),
-        BValue::Int(int) => JValue::Number(serde_json::Number::from(*int)),
-        BValue::List(list) => JValue::Array(list.iter().map(|v| convert(v)).collect()),
-        BValue::Dict(dict) => JValue::Object(
-            dict.iter()
-                .map(|(k, v)| (to_string(k), convert(v)))
-                .collect(),
-        ),
+fn decode(decoder: &mut Decoder, json: &mut String) {
+    if decoder.reader.is_at_end() {
+        return;
     }
-}
 
-pub fn to_json(bencoded_value: &str) -> String {
-    convert(&serde_bencode::from_str(&bencoded_value).unwrap()).to_string()
+    if decoder.is_string() {
+        json.push_str("\"");
+        let bytes = decoder.read_string_bytes();
+        match from_utf8(bytes) {
+            Ok(string) => json.push_str(string),
+            Err(_) => json.push_str(&hex::encode(bytes)),
+        }
+        json.push_str("\"");
+    } else if decoder.is_integer() {
+        json.push_str(&decoder.read_integer().to_string());
+    } else if decoder.is_list() {
+        decoder.reader.skip();
+        json.push_str("[");
+        if decoder.reader.peek() != b'e' {
+            decode(decoder, json);
+        }
+        while decoder.reader.peek() != b'e' {
+            json.push_str(",");
+            decode(decoder, json);
+        }
+        decoder.reader.skip();
+        json.push_str("]");
+    } else if decoder.is_dict() {
+        decoder.reader.skip();
+        json.push_str("{");
+        if decoder.reader.peek() != b'e' {
+            decode(decoder, json);
+            json.push_str(":");
+            decode(decoder, json);
+        }
+        while decoder.reader.peek() != b'e' {
+            json.push_str(",");
+            decode(decoder, json);
+            json.push_str(":");
+            decode(decoder, json);
+        }
+        decoder.reader.skip();
+        json.push_str("}");
+    } else {
+        panic!("invalid encoding")
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use serde_json::{json, Value};
 
     use super::to_json;
 
     fn make_round_trip(json: &Value) -> String {
         let bencoded = serde_bencode::to_string(json).unwrap();
-        to_json(&bencoded)
+        to_json(bencoded.as_bytes())
     }
 
     #[test]
@@ -46,7 +81,6 @@ mod tests {
 
     #[test]
     fn test_to_json() {
-        // See if this json survives a round trip
         let v = json!(
         {
           "a": {
@@ -81,5 +115,12 @@ mod tests {
 
         let decoded = make_round_trip(&v);
         assert_eq!(decoded, v.to_string());
+    }
+
+    #[test]
+    fn test_to_json_sample_torrent() {
+        let metainfo_path = "sample.torrent";
+        let bytes = fs::read(metainfo_path).unwrap();
+        to_json(&bytes);
     }
 }
