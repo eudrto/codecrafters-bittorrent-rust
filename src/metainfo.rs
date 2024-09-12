@@ -63,11 +63,11 @@ impl<'a> Metainfo<'a> {
         Self { announce, info }
     }
 
-    pub fn get_info_hash(&self) -> String {
+    pub fn get_info_hash(&self) -> [u8; 20] {
         let mut hasher = Sha1::new();
         hasher.update(self.info.encoded);
         let hash = hasher.finalize();
-        hex::encode(hash)
+        hash.into()
     }
 }
 
@@ -75,7 +75,7 @@ impl<'a> Display for Metainfo<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Tracker URL: {}", self.announce)?;
         write!(f, "Length: {}", self.info.length)?;
-        write!(f, "Info Hash: {}", self.get_info_hash())?;
+        write!(f, "Info Hash: {}", hex::encode(self.get_info_hash()))?;
         write!(f, "Piece Length: {}", self.info.piece_length)?;
         write!(f, "Piece Hashes:")?;
         for hash in &self.info.piece_hashes {

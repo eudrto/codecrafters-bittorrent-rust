@@ -10,4 +10,5 @@ pub struct Cli {
 pub enum SCommand {
     Decode { bencoded_value: String },
     Info { torrent_file_path: String },
+    Peers { torrent_file_path: String },
 }
