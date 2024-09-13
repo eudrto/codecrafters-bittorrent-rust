@@ -8,7 +8,17 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum SCommand {
-    Decode { bencoded_value: String },
-    Info { torrent_file_path: String },
-    Peers { torrent_file_path: String },
+    Decode {
+        bencoded_value: String,
+    },
+    Info {
+        torrent_file_path: String,
+    },
+    Peers {
+        torrent_file_path: String,
+    },
+    Handshake {
+        torrent_file_path: String,
+        peer_addr: String,
+    },
 }
