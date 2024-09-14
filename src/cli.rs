@@ -21,4 +21,11 @@ pub enum SCommand {
         torrent_file_path: String,
         peer_addr: String,
     },
+    #[command(name = "download_piece")]
+    DownloadPiece {
+        #[arg(short)]
+        output_file_path: String,
+        torrent_file_path: String,
+        piece_no: String,
+    },
 }
