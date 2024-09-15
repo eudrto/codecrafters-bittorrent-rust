@@ -1,6 +1,6 @@
-use std::{
-    io::{BufReader, BufWriter, Read, Write},
-    net::TcpStream,
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter},
+    net::tcp::{OwnedReadHalf, OwnedWriteHalf},
 };
 
 #[derive(Debug)]
@@ -23,13 +23,13 @@ pub enum PeerMsg {
 }
 
 impl PeerMsg {
-    pub fn read(reader: &mut BufReader<&TcpStream>) -> Self {
-        let length = read_u32(reader);
+    pub async fn read(reader: &mut BufReader<OwnedReadHalf>) -> Self {
+        let length = read_u32(reader).await;
         if length == 0 {
             panic!("peer message length is 0");
         }
 
-        let id = read_byte(reader);
+        let id = read_byte(reader).await;
         match id {
             1 => {
                 if length != 1 {
@@ -45,7 +45,7 @@ impl PeerMsg {
             }
             5 => {
                 let mut buf = vec![0; length as usize - 1];
-                reader.read_exact(&mut buf).unwrap();
+                reader.read_exact(&mut buf).await.unwrap();
                 Self::Bitfield(buf)
             }
             6 => {
@@ -53,9 +53,9 @@ impl PeerMsg {
                     panic!("request length: {}", length);
                 }
                 Self::Request {
-                    idx: read_u32(reader),
-                    begin: read_u32(reader),
-                    length: read_u32(reader),
+                    idx: read_u32(reader).await,
+                    begin: read_u32(reader).await,
+                    length: read_u32(reader).await,
                 }
             }
             7 => {
@@ -63,29 +63,29 @@ impl PeerMsg {
                     panic!("piece length: {}", length);
                 }
                 Self::Piece {
-                    idx: read_u32(reader),
-                    begin: read_u32(reader),
+                    idx: read_u32(reader).await,
+                    begin: read_u32(reader).await,
                 }
             }
             _ => {
                 let mut buf = vec![0; length as usize - 1];
-                reader.read_exact(&mut buf).unwrap();
+                reader.read_exact(&mut buf).await.unwrap();
                 Self::Unknown(buf)
             }
         }
     }
 
-    pub fn write(&self, writer: &mut BufWriter<&TcpStream>) {
+    pub async fn write(&self, writer: &mut BufWriter<OwnedWriteHalf>) {
         match self {
             Self::Unchoke => unimplemented!(),
             Self::Interested => {
                 let id = 2;
-                write(writer, id, &[0; 0]);
+                write(writer, id, &[0; 0]).await;
             }
             Self::Bitfield(_) => unimplemented!(),
             Self::Request { idx, begin, length } => {
                 let id = 6;
-                write(writer, id, &[*idx, *begin, *length]);
+                write(writer, id, &[*idx, *begin, *length]).await;
             }
             Self::Piece { .. } => unimplemented!(),
             Self::Unknown { .. } => unimplemented!(),
@@ -93,19 +93,19 @@ impl PeerMsg {
     }
 }
 
-fn read_byte(reader: &mut BufReader<&TcpStream>) -> u8 {
+async fn read_byte(reader: &mut BufReader<OwnedReadHalf>) -> u8 {
     let mut buf = [0; 1];
-    reader.read_exact(&mut buf).unwrap();
+    reader.read_exact(&mut buf).await.unwrap();
     u8::from_be_bytes(buf.try_into().unwrap())
 }
 
-fn read_u32(reader: &mut BufReader<&TcpStream>) -> u32 {
+async fn read_u32(reader: &mut BufReader<OwnedReadHalf>) -> u32 {
     let mut buf = [0; 4];
-    reader.read_exact(&mut buf).unwrap();
+    reader.read_exact(&mut buf).await.unwrap();
     u32::from_be_bytes(buf.try_into().unwrap())
 }
 
-fn write(writer: &mut BufWriter<&TcpStream>, id: u8, rest: &[u32]) {
+async fn write(writer: &mut BufWriter<OwnedWriteHalf>, id: u8, rest: &[u32]) {
     let mut msg = [0; 17];
     let length = 1 + 4 * rest.len();
     msg[..4].copy_from_slice(&(length as u32).to_be_bytes());
@@ -115,6 +115,6 @@ fn write(writer: &mut BufWriter<&TcpStream>, id: u8, rest: &[u32]) {
         let end = start + 4;
         msg[start..end].copy_from_slice(&val.to_be_bytes());
     }
-    writer.write_all(&msg[..4 + length]).unwrap();
-    writer.flush().unwrap();
+    writer.write_all(&msg[..4 + length]).await.unwrap();
+    writer.flush().await.unwrap();
 }
