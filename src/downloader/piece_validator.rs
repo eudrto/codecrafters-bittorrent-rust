@@ -1,7 +1,7 @@
 use sha1::{Digest, Sha1};
 use tokio::sync::mpsc::{Receiver, UnboundedSender};
 
-use crate::parts::{BlockResp, Piece, PieceReq, PieceResp};
+use super::parts::{BlockResp, Piece, PieceReq, PieceResp};
 
 pub async fn piece_validator(
     mut block_resp_receiver: Receiver<BlockResp>,

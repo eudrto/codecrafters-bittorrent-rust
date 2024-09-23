@@ -1,4 +1,4 @@
-use crate::peer_msg::PeerMsg;
+use super::peer_msg::PeerMsg;
 
 #[derive(Debug)]
 pub struct BlockReq {
@@ -67,10 +67,6 @@ pub struct PieceReq {
 }
 
 impl PieceReq {
-    pub fn new(idx: u32, len: u32) -> Self {
-        Self { idx, len }
-    }
-
     pub fn into_block_reqs(&self, block_size: u32) -> Vec<BlockReq> {
         let mut blocks: Vec<_> = (0..self.len)
             .step_by(block_size as usize)
@@ -83,14 +79,14 @@ impl PieceReq {
 }
 
 pub struct PieceResp {
-    pub _idx: u32,
+    pub idx: u32,
     pub bytes: Vec<u8>,
 }
 
 impl PieceResp {
     pub fn from_piece(piece: Piece, bytes: Vec<u8>) -> Self {
         Self {
-            _idx: piece.idx,
+            idx: piece.idx,
             bytes,
         }
     }

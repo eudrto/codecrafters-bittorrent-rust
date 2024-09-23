@@ -5,7 +5,7 @@ use std::{
 
 use sha1::{Digest, Sha1};
 
-use crate::{bencoding::Decoder, bytes_reader::BytesReader};
+use crate::{bencoding::Decoder, bytes_reader::BytesReader, downloader::parts::Piece};
 
 pub struct Info<'a> {
     pub encoded: &'a [u8],
@@ -89,6 +89,23 @@ impl<'a> Metainfo<'a> {
                 (self.info.length - self.get_piece_start(piece_idx)) as u32,
             ),
         )
+    }
+
+    fn get_last_piece_len(&self) -> u32 {
+        let no_pieces = self.get_no_pieces() as u64;
+        let last_piece_len = self.info.length - (no_pieces - 1) * self.info.piece_length as u64;
+        last_piece_len as u32
+    }
+
+    pub fn into_pieces(&self) -> Vec<Piece> {
+        let piece_hashes = &self.info.piece_hashes;
+        let mut pieces: Vec<_> = piece_hashes
+            .iter()
+            .enumerate()
+            .map(|(idx, hash)| Piece::new(idx as u32, self.info.piece_length, *hash))
+            .collect();
+        pieces.last_mut().unwrap().len = self.get_last_piece_len();
+        pieces
     }
 }
 

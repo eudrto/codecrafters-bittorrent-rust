@@ -28,4 +28,9 @@ pub enum SCommand {
         torrent_file_path: String,
         piece_no: String,
     },
+    Download {
+        #[arg(short)]
+        output_file_path: String,
+        torrent_file_path: String,
+    },
 }
