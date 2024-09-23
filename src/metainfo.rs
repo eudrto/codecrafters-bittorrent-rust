@@ -1,4 +1,7 @@
-use std::fmt::{self, Display};
+use std::{
+    cmp::{max, min},
+    fmt::{self, Display},
+};
 
 use sha1::{Digest, Sha1};
 
@@ -6,8 +9,8 @@ use crate::{bencoding::Decoder, bytes_reader::BytesReader};
 
 pub struct Info<'a> {
     pub encoded: &'a [u8],
-    pub length: i64,
-    pub piece_length: i64,
+    pub length: u64,
+    pub piece_length: u32,
     pub piece_hashes: Vec<[u8; 20]>,
 }
 
@@ -32,8 +35,8 @@ impl<'a> Info<'a> {
 
         Self {
             encoded,
-            length,
-            piece_length,
+            length: length as u64,
+            piece_length: piece_length as u32,
             piece_hashes,
         }
     }
@@ -68,6 +71,24 @@ impl<'a> Metainfo<'a> {
         hasher.update(self.info.encoded);
         let hash = hasher.finalize();
         hash.into()
+    }
+
+    pub fn get_no_pieces(&self) -> usize {
+        self.info.piece_hashes.len()
+    }
+
+    pub fn get_piece_start(&self, piece_idx: u32) -> u64 {
+        piece_idx as u64 * self.info.piece_length as u64
+    }
+
+    pub fn get_piece_len(&self, piece_idx: u32) -> u32 {
+        min(
+            self.info.piece_length,
+            max(
+                0,
+                (self.info.length - self.get_piece_start(piece_idx)) as u32,
+            ),
+        )
     }
 }
 

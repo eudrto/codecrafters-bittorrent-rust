@@ -2,26 +2,29 @@ mod bencoding;
 mod bytes_reader;
 mod cli;
 mod metainfo;
+mod parts;
+mod peer;
 mod peer_msg;
+mod piece_validator;
 mod tracker;
 
-use std::{
-    cmp::min,
-    fs::{self, write},
-};
+use std::fs::{self, write};
 
 use clap::Parser;
-use sha1::{Digest, Sha1};
+use parts::{Piece, PieceReq};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter},
+    io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
     runtime::Runtime,
+    spawn,
+    sync::mpsc::{channel, unbounded_channel},
 };
 
 use bencoding::to_json;
 use cli::{Cli, SCommand};
 use metainfo::Metainfo;
-use peer_msg::PeerMsg;
+use peer::Peer;
+use piece_validator::piece_validator;
 use tracker::{get_peers, QueryParams};
 
 pub fn run() {
@@ -83,17 +86,19 @@ pub fn run() {
         SCommand::DownloadPiece {
             output_file_path,
             torrent_file_path,
-            piece_no: piece_want,
+            piece_no,
         } => {
             let bytes = fs::read(torrent_file_path).unwrap();
             let metainfo = Metainfo::from_bytes(&bytes);
 
-            let piece_want: usize = piece_want.parse().unwrap();
-            let no_pieces = metainfo.info.piece_hashes.len();
-            if piece_want >= no_pieces {
-                eprintln!("requested piece: {}, no_pieces: {}", piece_want, no_pieces);
+            let piece_no = piece_no.parse().unwrap();
+            let piece_len = metainfo.get_piece_len(piece_no);
+            if piece_len == 0 {
+                let no_pieces = metainfo.get_no_pieces();
+                eprintln!("requested piece: {}, no_pieces: {}", piece_no, no_pieces);
                 return;
             }
+            let piece_req = PieceReq::new(piece_no, piece_len);
 
             let query_params = QueryParams {
                 info_hash: &metainfo.get_info_hash(),
@@ -104,87 +109,41 @@ pub fn run() {
                 left: metainfo.info.length,
                 compact: 1,
             };
-            let peers = get_peers(metainfo.announce, query_params);
+            let peer_addrs = get_peers(metainfo.announce, query_params);
 
             let rt = Runtime::new().unwrap();
             rt.block_on(async {
-                let stream = TcpStream::connect(peers[0]).await.unwrap();
-                let (read_half, write_half) = stream.into_split();
-                let mut reader = BufReader::new(read_half);
-                let mut writer = BufWriter::new(write_half);
+                let (piece_req_sender, piece_req_receiver) = unbounded_channel();
+                piece_req_sender.send(piece_req).unwrap();
 
-                // handshake
-                let mut handshake: [u8; 68] = [0; 68];
-                let proto = "BitTorrent protocol";
-                handshake[0] = proto.len() as u8;
-                handshake[1..20].copy_from_slice(proto.as_bytes());
-                handshake[28..48].copy_from_slice(&metainfo.get_info_hash());
-                handshake[48..68].copy_from_slice("00112233445566778899".as_bytes());
-                writer.write_all(&handshake).await.unwrap();
-                writer.flush().await.unwrap();
+                let (block_resp_sender, block_resp_receiver) = channel(1);
+                let (piece_resp_sender, mut piece_resp_receiver) = unbounded_channel();
 
-                reader.read_exact(&mut handshake).await.unwrap();
+                let peer_id = "00112233445566778899";
+                let block_size = 16 * 1024;
+                let mut peer = Peer::create(&peer_addrs[0]).await;
+                peer.do_handshake(&metainfo.get_info_hash(), peer_id).await;
+                peer.init_download().await;
+                let (request_writer_task, response_reader_task) =
+                    peer.start_download_tasks(piece_req_receiver, block_resp_sender, block_size);
 
-                // <-- bitfield
-                loop {
-                    let msg = PeerMsg::read(&mut reader).await;
-                    if let PeerMsg::Bitfield(_) = msg {
-                        break;
-                    }
-                    dbg!(msg);
-                }
+                let validator = spawn(piece_validator(
+                    block_resp_receiver,
+                    piece_req_sender,
+                    piece_resp_sender,
+                    Piece::new(
+                        piece_no,
+                        piece_len,
+                        metainfo.info.piece_hashes[piece_no as usize],
+                    ),
+                ));
 
-                // interested -->
-                PeerMsg::Interested.write(&mut writer).await;
+                request_writer_task.await.unwrap();
+                response_reader_task.await.unwrap();
+                validator.await.unwrap();
 
-                // <-- unchoke
-                loop {
-                    let msg = PeerMsg::read(&mut reader).await;
-                    if let PeerMsg::Unchoke = msg {
-                        break;
-                    }
-                    dbg!(msg);
-                }
-
-                // requests
-                const BLOCK_SIZE: usize = 16 * 1024;
-
-                let piece_length = min(
-                    metainfo.info.piece_length,
-                    metainfo.info.length - piece_want as i64 * metainfo.info.piece_length,
-                );
-
-                let mut piece = vec![0; piece_length as usize];
-                let blocks = piece.chunks_mut(BLOCK_SIZE);
-
-                for (block_idx, block) in blocks.into_iter().enumerate() {
-                    let req = PeerMsg::Request {
-                        idx: piece_want as u32,
-                        begin: (block_idx * BLOCK_SIZE) as u32,
-                        length: block.len() as u32,
-                    };
-                    req.write(&mut writer).await;
-
-                    let (piece_idx, block_begin) = loop {
-                        let msg = PeerMsg::read(&mut reader).await;
-                        if let PeerMsg::Piece { idx, begin } = msg {
-                            break (idx, begin);
-                        }
-                    };
-                    assert_eq!(piece_idx, piece_want as u32);
-                    assert_eq!(block_begin as usize % BLOCK_SIZE, 0);
-
-                    reader.read_exact(block).await.unwrap();
-                }
-
-                // piece hash
-                let mut hasher = Sha1::new();
-                hasher.update(&piece);
-                let hash: [u8; 20] = hasher.finalize().into();
-                assert_eq!(hash, metainfo.info.piece_hashes[piece_want]);
-
-                // write
-                write(output_file_path, piece).unwrap();
+                let piece_resp = piece_resp_receiver.recv().await.unwrap();
+                write(output_file_path, piece_resp.bytes).unwrap();
             });
         }
     }

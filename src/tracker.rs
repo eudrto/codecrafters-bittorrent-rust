@@ -13,7 +13,7 @@ pub struct QueryParams<'a> {
     pub port: i64,
     pub uploaded: i64,
     pub downloaded: i64,
-    pub left: i64,
+    pub left: u64,
     pub compact: u8,
 }
 

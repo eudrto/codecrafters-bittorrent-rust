@@ -14,9 +14,11 @@ pub enum PeerMsg {
         begin: u32,
         length: u32,
     },
+    #[allow(dead_code)]
     Piece {
         idx: u32,
         begin: u32,
+        bytes: Vec<u8>,
     },
     #[allow(dead_code)]
     Unknown(Vec<u8>),
@@ -62,10 +64,11 @@ impl PeerMsg {
                 if length < 9 {
                     panic!("piece length: {}", length);
                 }
-                Self::Piece {
-                    idx: read_u32(reader).await,
-                    begin: read_u32(reader).await,
-                }
+                let idx = read_u32(reader).await;
+                let begin = read_u32(reader).await;
+                let mut bytes = vec![0; length as usize - 9];
+                reader.read_exact(&mut bytes).await.unwrap();
+                Self::Piece { idx, begin, bytes }
             }
             _ => {
                 let mut buf = vec![0; length as usize - 1];
