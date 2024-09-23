@@ -1,5 +1,6 @@
 use std::net::SocketAddrV4;
 
+use async_channel::Receiver;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter},
     net::{
@@ -7,7 +8,7 @@ use tokio::{
         TcpStream,
     },
     spawn,
-    sync::mpsc::{channel, Sender, UnboundedReceiver},
+    sync::mpsc::{channel, Sender},
     task::JoinHandle,
 };
 
@@ -78,7 +79,7 @@ impl Peer {
 
     pub fn start_download_tasks(
         mut self,
-        mut piece_req_receiver: UnboundedReceiver<PieceReq>,
+        piece_req_receiver: Receiver<PieceReq>,
         block_resp_senders: Vec<Sender<BlockResp>>,
         block_size: u32,
     ) -> (JoinHandle<()>, JoinHandle<()>) {
@@ -87,7 +88,7 @@ impl Peer {
 
         let request_writer = spawn(async move {
             loop {
-                let Some(piece) = piece_req_receiver.recv().await else {
+                let Ok(piece) = piece_req_receiver.recv().await else {
                     return;
                 };
 

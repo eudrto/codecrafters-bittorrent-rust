@@ -1,3 +1,4 @@
+use async_channel::Sender;
 use sha1::{Digest, Sha1};
 use tokio::sync::mpsc::{Receiver, UnboundedSender};
 
@@ -5,7 +6,7 @@ use super::parts::{BlockResp, Piece, PieceReq, PieceResp};
 
 pub async fn piece_validator(
     mut block_resp_receiver: Receiver<BlockResp>,
-    piece_req_sender: UnboundedSender<PieceReq>,
+    piece_req_sender: Sender<PieceReq>,
     piece_resp_sender: UnboundedSender<PieceResp>,
     piece: Piece,
 ) {
@@ -34,7 +35,7 @@ pub async fn piece_validator(
             };
         }
         drain(&mut block_resp_receiver);
-        piece_req_sender.send((&piece).into()).unwrap();
+        piece_req_sender.send((&piece).into()).await.unwrap();
     }
 }
 
